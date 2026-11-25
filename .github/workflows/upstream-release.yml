@@ -64,6 +64,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+          # 上游自带 .gitignore 会忽略 *.md（如 internal/prompt/defaultprompt.md），
+          # 而它是 go:embed 必需的源码，必须强制纳入。
+          git add -f repo
           git commit -m "chore: 同步上游 $sha"
           git push
 
