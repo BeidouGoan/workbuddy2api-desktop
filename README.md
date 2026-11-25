@@ -47,6 +47,19 @@ powershell -ExecutionPolicy Bypass -File desktop\build.ps1
 | `repo/` | 上游服务端源码（网关、Web 管理面板），构建时嵌入为 `assets/server.exe` |
 | `dist/` | 构建产物，不入库 |
 
+## 自动跟踪上游与发布
+
+仓库内置 GitHub Actions 工作流 [.github/workflows/upstream-release.yml](.github/workflows/upstream-release.yml)：
+
+- **定时检查**：每天 UTC 03:17（北京时间 11:17）比对上游 HEAD 与 `.github/upstream-commit`
+- **自动同步**：发现新提交时，用上游对应 commit 的源码整体替换 `repo/` 并提交到 `main`
+- **自动构建发布**：在 `windows-latest` 上执行 `desktop/build.ps1`，随后创建 Release 并上传 `WorkBuddy2API.exe`
+- **手动触发**：Actions 页面选择「上游同步与发布」→ Run workflow；勾选 `force` 可在上游无变化时强制重新构建发布
+
+版本号规则：应用版本取自根目录 `VERSION`（当前 `1.0.0`），Release 标签为 `v<应用版本>-build.<Actions 运行号>`，例如 `v1.0.0-build.7`。构建号单调递增，不覆盖历史产物。发布说明由工作流以 UTF-8 写入，并附上游 commit 与对比链接。
+
+工作流使用仓库自带的 `GITHUB_TOKEN`（`contents: write`），不需要任何个人访问令牌。
+
 ## 许可与致谢
 
 本项目遵循 **MIT License**，见 [LICENSE](LICENSE)。
