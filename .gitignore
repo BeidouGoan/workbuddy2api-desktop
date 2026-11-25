@@ -1,0 +1,25 @@
+# 本地构建与运行产物（不入库）
+dist/
+.tools/
+.screenshots/
+desktop/assets/server.exe
+desktop/rsrc.syso
+*.syso
+go_releases.json
+
+# 运行时数据与凭据
+config.json
+auths/
+data/
+logs/
+*.log
+*.key
+*.pem
+.env
+.env.*
+
+# 通用
+node_modules/
+__pycache__/
+*.tmp
+*.zip

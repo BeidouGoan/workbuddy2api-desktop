@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorkBuddy2API 控制台</title>
+<style>
+  :root{
+    --bg:#080b0e;
+    --panel:rgba(255,255,255,.043);
+    --panel-2:rgba(255,255,255,.022);
+    --line:rgba(255,255,255,.075);
+    --line-strong:rgba(255,255,255,.14);
+    --ink:#e9eef2;
+    --ink-dim:#93a1ac;
+    --ink-faint:#5f6d78;
+    --ok:#3ee0a1;
+    --warn:#f2b544;
+    --bad:#ff5f5f;
+    --idle:#6f7d89;
+    --accent:#7c9dff;
+    --mono:"Cascadia Mono","Consolas","SF Mono",monospace;
+    --display:"Bahnschrift","DIN Alternate","Segoe UI Variable Display","Microsoft YaHei UI",sans-serif;
+    --body:"Segoe UI Variable Text","Microsoft YaHei UI","PingFang SC",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(760px 400px at 6% -12%,rgba(62,224,161,.09),transparent 62%),
+      radial-gradient(680px 360px at 98% 112%,rgba(124,157,255,.10),transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--body);
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.026) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.026) 1px,transparent 1px);
+    background-size:46px 46px;
+    -webkit-mask-image:radial-gradient(ellipse 90% 70% at 50% 0%,#000 20%,transparent 80%);
+    mask-image:radial-gradient(ellipse 90% 70% at 50% 0%,#000 20%,transparent 80%);
+  }
+  .shell{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:26px 30px 18px;gap:20px}
+
+  /* ---------- 顶栏 ---------- */
+  header{display:flex;align-items:center;gap:14px;flex:0 0 auto}
+  .mark{width:38px;height:38px;flex:0 0 auto;border-radius:11px;
+    background:linear-gradient(150deg,#1b2530,#0d1218);
+    border:1px solid var(--line-strong);
+    display:grid;place-items:center;box-shadow:0 8px 24px -12px rgba(62,224,161,.5)}
+  .mark svg{width:21px;height:21px}
+  .brand{display:flex;flex-direction:column;gap:2px}
+  .brand b{font-family:var(--display);font-size:17px;letter-spacing:.02em;font-weight:600}
+  .brand span{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.14em;text-transform:uppercase}
+  .spacer{flex:1}
+  .top-actions{display:flex;align-items:center;gap:10px}
+
+  .btn{
+    font-family:var(--body);font-size:13px;font-weight:500;
+    color:var(--ink);background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;
+    padding:0 15px;height:38px;display:inline-flex;align-items:center;gap:8px;
+    cursor:pointer;transition:border-color .18s,background .18s,transform .12s,box-shadow .18s;
+    white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--line-strong);background:rgba(255,255,255,.07)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{
+    background:linear-gradient(180deg,#4ae6ad,#2ecf92);color:#04140e;
+    border-color:rgba(62,224,161,.5);font-weight:600;
+    box-shadow:0 10px 26px -14px rgba(62,224,161,.9);
+  }
+  .btn.primary:hover{background:linear-gradient(180deg,#5cf0b8,#36d89b)}
+  .btn.danger-armed{background:rgba(255,95,95,.16);border-color:rgba(255,95,95,.55);color:#ffb4b4}
+  .btn svg{width:15px;height:15px;flex:0 0 auto;opacity:.9}
+
+  /* ---------- 主体 ---------- */
+  main{flex:1;display:grid;grid-template-columns:minmax(260px,.8fr) minmax(420px,1.62fr);gap:18px;min-height:0}
+
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:16px;
+    position:relative;overflow:hidden;
+  }
+  .card::after{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+  }
+
+  /* 状态导轨 */
+  .rail{padding:0 26px 22px;display:flex;flex-direction:column;justify-content:space-between}
+  .rail-head{padding-top:26px;display:flex;flex-direction:column;gap:16px}
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;color:var(--ink-faint);text-transform:uppercase}
+  .state-row{display:flex;align-items:flex-start;gap:12px}
+  .lamp{width:11px;height:11px;border-radius:50%;margin-top:12px;flex:0 0 auto;background:var(--idle);
+    box-shadow:0 0 0 4px rgba(111,125,137,.14)}
+  .lamp.on{background:var(--ok);box-shadow:0 0 0 4px rgba(62,224,161,.14),0 0 18px rgba(62,224,161,.75);
+    animation:breathe 2.6s ease-in-out infinite}
+  .lamp.warn{background:var(--warn);box-shadow:0 0 0 4px rgba(242,181,68,.14),0 0 16px rgba(242,181,68,.6)}
+  .lamp.bad{background:var(--bad);box-shadow:0 0 0 4px rgba(255,95,95,.16),0 0 16px rgba(255,95,95,.55)}
+  @keyframes breathe{0%,100%{opacity:1}50%{opacity:.55}}
+
+  .state-text{font-family:var(--display);font-size:clamp(40px,4.6vw,56px);line-height:.98;
+    letter-spacing:-.015em;font-weight:600;font-stretch:condensed}
+  .state-text .sub{display:block;font-family:var(--body);font-size:12.5px;font-weight:400;
+    letter-spacing:0;color:var(--ink-dim);margin-top:10px;line-height:1.5}
+
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 -26px}
+  .metric{background:#0b0f13;padding:14px 20px}
+  .metric dt{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink-faint);text-transform:uppercase}
+  .metric dd{font-family:var(--mono);font-size:19px;margin-top:5px;color:var(--ink)}
+  .metric dd small{font-size:11px;color:var(--ink-faint);margin-left:4px}
+
+  .pools{display:flex;flex-direction:column;gap:10px;padding-bottom:4px}
+  .pool-head{display:flex;justify-content:space-between;align-items:baseline}
+  .pool-head span{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.12em}
+  .pool-head b{font-family:var(--mono);font-size:12px;color:var(--ink-dim);font-weight:400}
+  .bar{height:7px;border-radius:99px;background:rgba(255,255,255,.06);display:flex;overflow:hidden;gap:2px}
+  .bar i{display:block;height:100%;border-radius:99px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:4px}
+  .legend span{font-size:11.5px;color:var(--ink-dim);display:flex;align-items:center;gap:6px}
+  .dot{width:7px;height:7px;border-radius:2px;display:inline-block}
+
+  /* 右列 */
+  .stack{display:flex;flex-direction:column;gap:18px;min-height:0}
+  .connect{padding:22px 24px}
+  .connect h2{font-family:var(--display);font-size:14px;font-weight:600;letter-spacing:.06em;
+    color:var(--ink-dim);text-transform:uppercase;margin-bottom:16px}
+
+  .field{display:flex;align-items:center;gap:12px;background:#0a0e12;border:1px solid var(--line);
+    border-radius:11px;padding:11px 12px 11px 16px;transition:border-color .2s}
+  .field + .field{margin-top:10px}
+  .field:hover{border-color:var(--line-strong)}
+  .field .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--ink-faint);
+    width:64px;flex:0 0 auto;text-transform:uppercase;white-space:nowrap}
+  .field .v{font-family:var(--mono);font-size:13px;color:var(--ink);flex:1;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .copy{height:30px;padding:0 12px;font-size:12px;border-radius:8px;flex:0 0 auto}
+  .copy.done{border-color:rgba(62,224,161,.55);color:var(--ok)}
+
+  .ops{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:10px}
+  .op{
+    border:1px solid var(--line);border-radius:12px;background:var(--panel-2);
+    padding:14px 14px 12px;cursor:pointer;text-align:left;color:var(--ink);
+    display:flex;flex-direction:column;gap:7px;transition:border-color .18s,background .18s,transform .12s;
+    min-height:74px;
+  }
+  .op:hover{border-color:var(--line-strong);background:rgba(255,255,255,.055)}
+  .op:active{transform:translateY(1px)}
+  .op b{font-size:13px;font-weight:500}
+  .op small{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.06em}
+  .op .ico{width:16px;height:16px;opacity:.65}
+  .op[disabled]{opacity:.4;pointer-events:none}
+  .op.toggled{border-color:rgba(62,224,161,.4);background:rgba(62,224,161,.07)}
+  .op.toggled small{color:rgba(62,224,161,.85)}
+
+  .alert{
+    display:none;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:12px;
+    background:rgba(255,95,95,.09);border:1px solid rgba(255,95,95,.3);
+    font-size:12.5px;color:#ffc2c2;line-height:1.5;
+  }
+  .alert.show{display:flex}
+  .alert.warn{background:rgba(242,181,68,.08);border-color:rgba(242,181,68,.28);color:#f5d79a}
+
+  footer{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:0 2px}
+  footer .path{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  footer .sep{width:1px;height:11px;background:var(--line-strong);flex:0 0 auto}
+  footer .hint{font-size:11px;color:var(--ink-faint);white-space:nowrap}
+
+  .reveal{opacity:0;animation:rise .55s cubic-bezier(.16,.84,.24,1) forwards}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  @media (max-width:900px){
+    main{grid-template-columns:1fr;overflow:auto}
+    .rail{padding:20px}
+    .metrics{margin:18px -20px 0}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="reveal" style="animation-delay:.02s">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="url(#g1)" stroke-width="1.9" stroke-linecap="round">
+        <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#4ae6ad"/><stop offset="1" stop-color="#7c9dff"/>
+        </linearGradient></defs>
+        <circle cx="5" cy="6.5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="6.5" r="2"/>
+        <path d="M5 8.5v2.2c0 1.1.9 2 2 2h1.4M19 8.5v2.2c0 1.1-.9 2-2 2h-1.4"/>
+        <path d="M8.4 12.7 12 15.6l3.6-2.9"/>
+        <path d="M12 15.6V21"/>
+      </svg>
+    </div>
+    <div class="brand">
+      <b>WorkBuddy2API</b>
+      <span id="brand-sub">本地网关</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="top-actions">
+      <button class="btn" id="btn-hide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+        最小化到托盘
+      </button>
+      <button class="btn primary" id="btn-panel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 9h17M8 13h8M8 16.5h5"/>
+        </svg>
+        打开 Web 面板
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card rail reveal" style="animation-delay:.08s">
+      <div class="rail-head">
+        <div class="eyebrow">服务状态 / Service</div>
+        <div class="state-row">
+          <div class="lamp" id="lamp"></div>
+          <div class="state-text" id="state-text">已停止
+            <span class="sub" id="state-sub">等待启动</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="metrics">
+        <dl class="metric"><dt>运行时长</dt><dd id="m-uptime">—</dd></dl>
+        <dl class="metric"><dt>监听端口</dt><dd id="m-port">—</dd></dl>
+      </div>
+
+      <div class="pools">
+        <div class="pool-head">
+          <span>账号池 / Accounts</span>
+          <b id="pool-ratio">0 / 0</b>
+        </div>
+        <div class="bar" id="pool-bar"></div>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--ok)"></i>可用 <b id="n-healthy" style="font-family:var(--mono);color:var(--ink-dim)">0</b></span>
+          <span><i class="dot" style="background:var(--warn)"></i>冷却 <b id="n-cooling" style="font-family:var(--mono);color:var(--ink-dim)">0</b></span>
+          <span><i class="dot" style="background:var(--idle)"></i>禁用 <b id="n-disabled" style="font-family:var(--mono);color:var(--ink-dim)">0</b></span>
+        </div>
+      </div>
+
+      <div class="alert" id="alert" style="margin-top:16px">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="flex:0 0 auto;margin-top:1px">
+          <circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.2v.1"/>
+        </svg>
+        <span id="alert-text"></span>
+      </div>
+    </section>
+
+    <div class="stack">
+      <section class="card connect reveal" style="animation-delay:.14s">
+        <h2>接入信息</h2>
+        <div class="field">
+          <span class="k">Base URL</span>
+          <span class="v" id="v-base">—</span>
+          <button class="btn copy" data-copy="base">复制</button>
+        </div>
+        <div class="field">
+          <span class="k">API Key</span>
+          <span class="v" id="v-key">—</span>
+          <button class="btn copy" data-copy="key">复制</button>
+        </div>
+      </section>
+
+      <section class="card connect reveal" style="animation-delay:.2s;flex:1;display:flex;flex-direction:column">
+        <h2>快捷操作</h2>
+        <div class="ops" style="flex:1;align-content:start">
+          <button class="op" id="op-restart">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4.5V10h-5.5"/>
+            </svg>
+            <b>重启服务</b><small>应用配置改动</small>
+          </button>
+          <button class="op" id="op-toggle">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M12 4v8"/><path d="M7.5 6.8a7 7 0 1 0 9 0"/>
+            </svg>
+            <b id="op-toggle-text">停止服务</b><small>暂停对外提供</small>
+          </button>
+          <button class="op" id="op-autostart">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19.5V4.5"/><path d="M6.5 10 12 4.5 17.5 10"/>
+            </svg>
+            <b>开机自启</b><small id="op-autostart-sub">未开启</small>
+          </button>
+          <button class="op" id="op-dir">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+              <path d="M3.5 7.5h6l2 2.5h9v9.5h-17z"/>
+            </svg>
+            <b>数据目录</b><small>配置与账号</small>
+          </button>
+          <button class="op" id="op-logs">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M6 3.5h9l4 4v13H6z"/><path d="M9 12h7M9 16h5"/>
+            </svg>
+            <b>日志目录</b><small>排查异常</small>
+          </button>
+          <button class="op" id="op-quit">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M14 4.5H6.5v15H14"/><path d="M13 12h7"/><path d="M17 8.5 20.5 12 17 15.5"/>
+            </svg>
+            <b id="op-quit-text">退出程序</b><small id="op-quit-sub">停止服务并关闭</small>
+          </button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="reveal" style="animation-delay:.26s">
+    <span class="path" id="f-path">—</span>
+    <span class="sep"></span>
+    <span class="hint" id="f-version">v1.0.0</span>
+    <span class="spacer"></span>
+    <span class="hint">关闭窗口不会退出，程序常驻托盘</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const TOKEN = "__TOKEN__";
+  const $ = (id) => document.getElementById(id);
+  const api = (path, body) => fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: Object.assign({ "X-WB2A-Token": TOKEN }, body === undefined ? {} : { "Content-Type": "application/json" }),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }).then(async (r) => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || ("请求失败 " + r.status));
+    return data;
+  });
+
+  let snap = null;
+  let armedQuit = false;
+  let quitTimer = null;
+
+  const STATE_MAP = {
+    running:    { text: "运行中",   sub: "服务正常，可对外提供 OpenAI 兼容接口", cls: "on" },
+    starting:   { text: "启动中",   sub: "正在加载账号池与配置文件",             cls: "warn" },
+    restarting: { text: "重启中",   sub: "检测到服务退出，正在自动恢复",         cls: "warn" },
+    stopped:    { text: "已停止",   sub: "服务未运行，接口暂不可用",             cls: "" },
+    failed:     { text: "异常停止", sub: "自动重启已达上限，请查看日志",         cls: "bad" },
+  };
+
+  function fmtUptime(sec) {
+    if (!sec || sec < 0) return "—";
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+    if (h > 0) return h + "<small>h</small>" + String(m).padStart(2, "0") + "<small>m</small>";
+    if (m > 0) return m + "<small>m</small>" + String(s).padStart(2, "0") + "<small>s</small>";
+    return s + "<small>s</small>";
+  }
+
+  function maskKey(k) {
+    if (!k) return "尚未生成";
+    if (k.length <= 12) return k;
+    return k.slice(0, 6) + "••••••••••••" + k.slice(-4);
+  }
+
+  function render() {
+    if (!snap) return;
+    const st = STATE_MAP[snap.state] || STATE_MAP.stopped;
+    $("state-text").firstChild.nodeValue = st.text;
+    $("state-sub").textContent = st.sub;
+    $("lamp").className = "lamp " + st.cls;
+
+    $("m-uptime").innerHTML = snap.state === "running" ? fmtUptime(snap.uptime_sec) : "—";
+    $("m-port").textContent = snap.port || "—";
+
+    const a = snap.accounts || { total: 0, healthy: 0, cooling: 0, disabled: 0 };
+    $("pool-ratio").textContent = a.healthy + " / " + a.total;
+    $("n-healthy").textContent = a.healthy;
+    $("n-cooling").textContent = a.cooling;
+    $("n-disabled").textContent = a.disabled;
+    const total = Math.max(a.total, 1);
+    const seg = (n, color) => n > 0
+      ? '<i style="width:' + (n / total * 100) + "%;background:" + color + '"></i>' : "";
+    $("pool-bar").innerHTML = seg(a.healthy, "var(--ok)") + seg(a.cooling, "var(--warn)") + seg(a.disabled, "var(--idle)");
+
+    $("v-base").textContent = snap.base_url || "—";
+    $("v-key").textContent = maskKey(snap.api_key);
+    $("v-base").title = snap.base_url || "";
+    $("v-key").title = snap.api_key ? "已隐藏，点击复制获取完整 Key" : "";
+
+    const running = snap.state === "running";
+    const busy = snap.state === "starting" || snap.state === "restarting";
+    $("op-restart").disabled = busy;
+    $("op-toggle").disabled = busy;
+    $("op-toggle-text").textContent = running ? "停止服务" : "启动服务";
+    $("op-toggle").querySelector("small").textContent = running ? "暂停对外提供" : "重新开始监听";
+
+    $("op-autostart").classList.toggle("toggled", !!snap.autostart);
+    $("op-autostart-sub").textContent = snap.autostart ? "已开启 · 登录即运行" : "未开启";
+
+    $("f-path").textContent = snap.data_dir || "";
+    const coreVer = snap.version && snap.version !== "dev" ? " · core " + snap.version : "";
+    $("f-version").textContent = "v" + (snap.desktop_version || "1.0.0") + coreVer;
+    $("brand-sub").textContent = snap.external ? "外部实例托管" : "本地网关";
+
+    const alertBox = $("alert");
+    const notice = snap.last_error || snap.port_note;
+    if (notice) {
+      $("alert-text").textContent = notice;
+      alertBox.classList.add("show");
+      alertBox.classList.toggle("warn", snap.state !== "failed");
+    } else {
+      alertBox.classList.remove("show");
+    }
+  }
+
+  async function refresh() {
+    try {
+      snap = await api("/api/state");
+      render();
+    } catch (e) { /* 外壳重启瞬间的失败不提示 */ }
+  }
+
+  async function act(action, extra) {
+    try {
+      const res = await api("/api/action", Object.assign({ action: action }, extra || {}));
+      if (res.message) toast(res.message);
+      setTimeout(refresh, 120);
+    } catch (e) { toast(e.message, true); }
+  }
+
+  let toastEl = null, toastTimer = null;
+  function toast(msg, bad) {
+    if (!toastEl) {
+      toastEl = document.createElement("div");
+      toastEl.style.cssText = "position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);" +
+        "padding:10px 18px;border-radius:11px;font-size:12.5px;z-index:99;opacity:0;" +
+        "background:rgba(18,23,28,.96);border:1px solid rgba(255,255,255,.12);" +
+        "box-shadow:0 16px 40px -18px #000;transition:opacity .2s,transform .2s;pointer-events:none;color:#e9eef2";
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = msg;
+    toastEl.style.borderColor = bad ? "rgba(255,95,95,.5)" : "rgba(62,224,161,.4)";
+    toastEl.style.color = bad ? "#ffc2c2" : "#d6f7e8";
+    requestAnimationFrame(() => {
+      toastEl.style.opacity = "1";
+      toastEl.style.transform = "translateX(-50%) translateY(0)";
+    });
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastEl.style.opacity = "0";
+      toastEl.style.transform = "translateX(-50%) translateY(8px)";
+    }, 1800);
+  }
+
+  // —— 事件绑定 ——
+  $("btn-panel").onclick = () => act("open-panel");
+  $("btn-hide").onclick = () => act("hide");
+  $("op-restart").onclick = () => act("restart");
+  $("op-toggle").onclick = () => {
+    if (!snap) return;
+    act(snap.state === "running" ? "stop" : "start");
+  };
+  $("op-autostart").onclick = () => {
+    if (!snap) return;
+    act("autostart", { value: !snap.autostart });
+  };
+  $("op-dir").onclick = () => act("open-dir");
+  $("op-logs").onclick = () => act("open-logs");
+
+  $("op-quit").onclick = () => {
+    if (!armedQuit) {
+      armedQuit = true;
+      $("op-quit").classList.add("toggled");
+      $("op-quit-text").textContent = "确认退出？";
+      $("op-quit-sub").textContent = "3 秒内再点一次";
+      clearTimeout(quitTimer);
+      quitTimer = setTimeout(() => {
+        armedQuit = false;
+        $("op-quit").classList.remove("toggled");
+        $("op-quit-text").textContent = "退出程序";
+        $("op-quit-sub").textContent = "停止服务并关闭";
+      }, 3000);
+      return;
+    }
+    act("quit");
+  };
+
+  document.querySelectorAll("[data-copy]").forEach((btn) => {
+    btn.onclick = async () => {
+      if (!snap) return;
+      const isBase = btn.dataset.copy === "base";
+      const text = isBase ? (snap.base_url + "\n" + snap.api_key) : snap.api_key;
+      if (!text) return toast("暂无可复制内容", true);
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (e) {
+        await act("copy", { text: text });
+      }
+      btn.classList.add("done");
+      const old = btn.textContent;
+      btn.textContent = "已复制";
+      setTimeout(() => { btn.classList.remove("done"); btn.textContent = old; }, 1400);
+    };
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "F5") { e.preventDefault(); refresh(); }
+  });
+
+  refresh();
+  setInterval(refresh, 1000);
+})();
+</script>
+</body>
+</html>
