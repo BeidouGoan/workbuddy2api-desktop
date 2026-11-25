@@ -2,10 +2,17 @@
 # Usage: powershell -ExecutionPolicy Bypass -File desktop\build.ps1
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$go = Join-Path $root ".tools\go\bin\go.exe"
-$env:GOPATH = Join-Path $root ".tools\gopath"
-$env:GOMODCACHE = Join-Path $env:GOPATH "pkg\mod"
-$env:GOPROXY = "https://goproxy.cn,direct"
+# 本地开发用 .tools 下的离线工具链；CI（GitHub Actions）里直接用 PATH 中的 go。
+$localGo = Join-Path $root ".tools\go\bin\go.exe"
+$localGopath = Join-Path $root ".tools\gopath"
+if (Test-Path $localGo) {
+  $go = $localGo
+  $env:GOPATH = $localGopath
+  $env:GOMODCACHE = Join-Path $env:GOPATH "pkg\mod"
+  $env:GOPROXY = "https://goproxy.cn,direct"
+} else {
+  $go = "go"
+}
 $env:CGO_ENABLED = "0"
 $env:GOTOOLCHAIN = "local"
 
@@ -29,7 +36,7 @@ if ($needIcon) {
   $rsrc = Get-Command rsrc -ErrorAction SilentlyContinue
   if ($null -eq $rsrc) {
     & $go install github.com/akavel/rsrc@latest
-    $rsrc = Join-Path $env:GOPATH "bin\rsrc.exe"
+    $rsrc = Join-Path (& $go env GOPATH) "bin\rsrc.exe"
   } else { $rsrc = $rsrc.Source }
   & $rsrc -ico $ico -o $syso
   if ($LASTEXITCODE -ne 0) { throw "rsrc failed" }
