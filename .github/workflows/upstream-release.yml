@@ -1,0 +1,152 @@
+name: 上游同步与发布
+
+on:
+  schedule:
+    # 每天 UTC 03:17（北京时间 11:17）检查一次上游
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "上游无变化时也重新构建并发布"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-release
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: 检查并同步上游
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      sha: ${{ steps.check.outputs.sha }}
+      prev: ${{ steps.check.outputs.prev }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 检查上游 HEAD
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git ls-remote https://github.com/misakano7545/workbuddy2api-panel HEAD | awk '{print $1}')
+          prev=$(tr -d '\r\n' < .github/upstream-commit)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "prev=$prev" >> "$GITHUB_OUTPUT"
+          force="${{ inputs.force }}"
+          if [ "$sha" != "$prev" ] || [ "$force" = "true" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "继续：上游 $sha，记录 $prev，force=$force"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "上游无变化（$sha），跳过"
+          fi
+
+      - name: 同步上游源码到 repo/
+        if: steps.check.outputs.changed == 'true' && steps.check.outputs.sha != steps.check.outputs.prev
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="${{ steps.check.outputs.sha }}"
+          curl -fsSL -o /tmp/upstream.tar.gz "https://codeload.github.com/misakano7545/workbuddy2api-panel/tar.gz/$sha"
+          mkdir -p /tmp/upstream
+          tar -xzf /tmp/upstream.tar.gz -C /tmp/upstream --strip-components=1
+          rm -rf repo
+          mv /tmp/upstream repo
+          echo "$sha" > .github/upstream-commit
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: 同步上游 $sha"
+          git push
+
+  build:
+    name: Windows 构建
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+          cache: false
+
+      - name: 构建单文件 exe
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File desktop\build.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WorkBuddy2API
+          path: dist\WorkBuddy2API.exe
+          if-no-files-found: error
+          retention-days: 3
+
+  release:
+    name: 发布 Release
+    needs: [sync, build]
+    if: needs.sync.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: WorkBuddy2API
+          path: dist
+
+      - name: 计算版本号
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=$(tr -d '\r\n' < VERSION)
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "tag=v${base}-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: 生成发布说明（UTF-8）
+        shell: bash
+        env:
+          BASE: ${{ steps.meta.outputs.base }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          SHA: ${{ needs.sync.outputs.sha }}
+          PREV: ${{ needs.sync.outputs.prev }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## WorkBuddy2API 桌面版 ${TAG}"
+            echo
+            echo "- 应用版本：v${BASE}（构建号 ${GITHUB_RUN_NUMBER}）"
+            echo "- 上游提交：\`${SHA:0:7}\`（[misakano7545/workbuddy2api-panel](https://github.com/misakano7545/workbuddy2api-panel)）"
+            if [ "$SHA" != "$PREV" ]; then
+              echo "- 上游变更：https://github.com/misakano7545/workbuddy2api-panel/compare/${PREV}...${SHA}"
+            else
+              echo "- 上游变更：无（本次为手动重新构建）"
+            fi
+            echo
+            echo "### 使用"
+            echo '下载 `WorkBuddy2API.exe` 后双击运行，首次启动释放到 `%LOCALAPPDATA%\WorkBuddy2API\`，默认监听 http://127.0.0.1:7863 。'
+            echo
+            echo "> 需要 Windows 10/11 x64 与 Microsoft Edge WebView2 运行时；MIT License。"
+          } > notes.md
+          cat notes.md
+
+      - name: 创建 Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/WorkBuddy2API.exe \
+            --title "WorkBuddy2API $TAG" \
+            --notes-file notes.md \
+            --target main
